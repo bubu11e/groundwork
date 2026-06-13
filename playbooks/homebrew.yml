@@ -1,0 +1,68 @@
+---
+# Bootstraps Homebrew into a user-owned prefix, then installs the global
+# package/cask manifest in one pass. This play is the single owner of every
+# install; no other playbook clones brew or installs formulae/casks.
+#
+# The shared manifest (homebrew_packages / homebrew_casks) lives in the
+# committed group_vars/all.yml; personal, per-machine casks are appended from
+# the gitignored host_vars homebrew_casks_extra list. Everything else (the
+# version pin, the install prefix, the update/upgrade flags) is tracked here.
+- name: Install Homebrew manifest
+  hosts: localhost
+  tags: [homebrew]
+  environment:
+    # Skip the implicit `brew update` (a full git fetch of brew + every tap)
+    # that otherwise runs before each install. With the per-cask loop that
+    # fetch fires once per cask and dominates install time. Explicit updates
+    # still happen via the module's update_homebrew flag below.
+    HOMEBREW_NO_AUTO_UPDATE: '1'
+  vars:
+    # Pinned to a release tag for reproducibility. Renovate bumps this line
+    # (re-point the regex here if you move it). Avoid tracking a branch.
+    homebrew_version: '6.0.1'
+    # Installed to ~/.homebrew (not /opt/homebrew) to avoid requiring root.
+    # Pre-built bottles are incompatible with this prefix, so every formula
+    # compiles from source -- leave homebrew_upgrade_all off to avoid mass
+    # rebuilds.
+    homebrew_root_path: '~/.homebrew'
+    # One explicit `brew update` up front refreshes formula/cask definitions
+    # for the run. This pairs with HOMEBREW_NO_AUTO_UPDATE above: definitions
+    # are fetched once here instead of once per looped cask install.
+    homebrew_update: true
+    homebrew_upgrade_all: false
+  tasks:
+    - name: Checkout Homebrew
+      ansible.builtin.git:
+        repo: https://github.com/Homebrew/brew
+        dest: '{{ homebrew_root_path }}'
+        version: '{{ homebrew_version }}'
+
+    - name: Update and upgrade Homebrew
+      community.general.homebrew:
+        update_homebrew: "{{ homebrew_update }}"
+        upgrade_all: "{{ homebrew_upgrade_all }}"
+
+    - name: Install homebrew packages
+      # Formulae install in one brew invocation (list-form name:). Default to an
+      # empty list so the play still runs if the manifest var is absent (e.g. CI).
+      community.general.homebrew:
+        name: "{{ homebrew_packages | default([]) }}"
+        state: present
+
+    - name: Install homebrew casks
+      # Loop per cask (not list-form) so the guard below stays non-fatal for
+      # apps already installed outside Homebrew: `brew install --cask` errors
+      # with "already an App at ..." for those, which we treat as success
+      # rather than failing the whole run.
+      community.general.homebrew_cask:
+        name: "{{ item }}"
+        state: present
+      # Shared base (group_vars) plus the per-machine, gitignored extras.
+      loop: "{{ (homebrew_casks | default([])) + (homebrew_casks_extra | default([])) }}"
+      # Per-cask host-specific toggle (host_vars/localhost.yml). Casks default
+      # to enabled; set a name to false there to skip it on this machine.
+      when: homebrew_casks_enabled[item] | default(true)
+      register: homebrew_cask_result
+      failed_when:
+        - homebrew_cask_result.failed
+        - "'already an App at' not in (homebrew_cask_result.msg | default(''))"

@@ -1,0 +1,25 @@
+---
+steps:
+  - name: pre-commit
+    # docker_registry and docker_repo are provided by the Woodpecker instance
+    # (org/repo variables), so the internal registry host is not committed here.
+    image: ${docker_registry}/${docker_repo}
+    pull: true
+    commands:
+      - pre-commit run --all-files
+
+  - name: syntax-check
+    image: python:3.12-alpine
+    commands:
+      - apk add --no-cache git
+      - pip install ansible==14.0.0 --quiet
+      # workaround: Woodpecker workspaces are world-writable; Ansible refuses to
+      # load ansible.cfg from such directories as a security measure, which breaks
+      # collections_path. Stripping world-write permission restores normal cfg
+      # loading.
+      - chmod o-w .
+      - ansible-galaxy collection install -r requirements.yml
+      - ansible-playbook --syntax-check -i 'localhost,' playbooks/site.yml
+
+when:
+  event: [push, manual]

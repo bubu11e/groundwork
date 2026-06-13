@@ -1,0 +1,73 @@
+---
+# Global Homebrew manifest (single source of truth for every install, applied by
+# playbooks/homebrew.yml). Playbooks exist only for tools that also need
+# configuration beyond install (dock, git-repos).
+homebrew_packages:
+  # Shell
+  - starship
+  - fzf
+  - zsh-autosuggestions
+  - zsh-history-substring-search
+  - zsh-syntax-highlighting
+  # Editors & multiplexers
+  - neovim
+  - tmux
+  # Dev tools
+  - go
+  - mise
+  - jq
+  - step
+  - pipenv
+  - chezmoi
+  - prek
+  # Kubernetes
+  - kubectl
+  - k9s
+  - helm
+  - k3d
+  - kind
+  - krew
+  # Infrastructure as Code
+  - tfenv
+  - terraform-docs
+  - tflint
+  - tfsec
+  - tfupdate
+  - terrascan
+  - checkov
+  # Security & linting
+  - trivy
+  - hadolint
+  - golangci-lint
+  - vale
+  # Containers
+  - docker
+  - podman
+  - docker-buildx
+  - docker-compose
+  # Dock tooling
+  - dockutil
+  # AI tools
+  - block-goose-cli
+  # Utilities
+  - yq
+  - telnet
+  - gnu-sed
+
+# Neutral, shareable cask base. Personal/comms apps (messengers, mail,
+# password manager, media) are not listed here -- they live per-machine in
+# host_vars as homebrew_casks_extra (gitignored) and are appended at install
+# time by playbooks/homebrew.yml.
+homebrew_casks:
+  # Terminals & fonts
+  - ghostty
+  - font-jetbrains-mono-nerd-font
+  # Editors
+  - vscodium
+  # Window management
+  - rectangle
+  # AI tools
+  - claude-code
+  # Applications
+  - firefox
+  - libreoffice

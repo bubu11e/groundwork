@@ -1,0 +1,309 @@
+---
+# macOS system preferences via osx_defaults, plus Dock app pinning via dockutil.
+# This is OS-level state (not dotfiles), so it stays in Ansible. Changes are
+# applied immediately by restarting the relevant process (Dock, Finder) through
+# handlers that run once at the end of the play.
+#
+# Requires the Homebrew manifest to have run first (homebrew.yml installs both
+# dockutil and the apps pinned below).
+- name: Configure macOS
+  hosts: localhost
+  tags: [osx]
+  vars:
+    # Neutral fallback Dock layout (stock macOS apps only). The real, personal
+    # list is supplied per-machine via host_vars/localhost.yml as `dock_apps`,
+    # which overrides this default. It is kept out of `dock_apps` directly
+    # because play vars outrank host_vars; used only as a default() argument, the
+    # host_vars value wins when present. Finder is intentionally absent: macOS
+    # always pins it at the left of the Dock, so listing it would pin a
+    # duplicate. Per-host external apps (installed outside Homebrew) are woven in
+    # via the host_vars dock_apps_extra list at index dock_apps_extra_position
+    # (default: appended at the end). Only apps that exist on disk are pinned, so
+    # a missing app is skipped automatically.
+    dock_apps_default:
+      - /System/Applications/Calendar.app
+      - /System/Applications/Reminders.app
+      - /System/Applications/Messages.app
+      - /System/Applications/Photos.app
+      - /System/Applications/Calculator.app
+  pre_tasks:
+    - name: Close any open System Preferences panes
+      ansible.builtin.command: osascript -e 'tell application "System Preferences" to quit'
+      changed_when: false
+      ignore_errors: true  # noqa: ignore-errors
+
+  handlers:
+    - name: Killall-dock
+      ansible.builtin.command: killall Dock
+      changed_when: false
+
+    - name: Killall-finder
+      ansible.builtin.command: killall Finder
+      changed_when: false
+
+  tasks:
+    # --- Dock: preferences ---
+    - name: Dock - Don’t automatically rearrange Spaces based on most recent use
+      community.general.osx_defaults:
+        domain: com.apple.dock
+        key: mru-spaces
+        type: bool
+        value: false
+        state: present
+      notify: Killall-dock
+
+    - name: Dock - Automatically hide and show the Dock
+      community.general.osx_defaults:
+        domain: com.apple.dock
+        key: autohide
+        type: bool
+        value: true
+        state: present
+      notify: Killall-dock
+
+    - name: Dock - Don’t show recent applications in Dock
+      community.general.osx_defaults:
+        domain: com.apple.dock
+        key: show-recents
+        type: bool
+        value: false
+        state: present
+      notify: Killall-dock
+
+    - name: Dock - Set size of icons
+      community.general.osx_defaults:
+        domain: com.apple.dock
+        key: tilesize
+        type: float
+        value: 48
+        state: present
+      notify: Killall-dock
+
+    # --- Dock: pinned apps (dockutil) ---
+    # Pin with --no-restart and let the Killall-dock handler apply both the
+    # preferences above and these pins in a single Dock restart.
+    - name: Dock - Remove all pinned apps
+      ansible.builtin.command:
+        argv: [dockutil, --remove, all, --no-restart]
+      changed_when: true
+      notify: Killall-dock
+
+    # Resolve the base pinned-app list: the per-host `dock_apps` (host_vars) when
+    # defined, otherwise the neutral dock_apps_default above.
+    - name: Dock - Resolve the base pinned-app list
+      ansible.builtin.set_fact:
+        dock_apps_base: "{{ dock_apps | default(dock_apps_default) }}"
+
+    # Weave the per-host dock_apps_extra block into the base list at a chosen
+    # index (dock_apps_extra_position, default = end). Python slice semantics:
+    # 0 prepends, a negative index counts from the end (-1 = before the last).
+    # The index math stays inside one expression so it keeps its int type.
+    - name: Dock - Order the pinned-app list (base + per-host extras at chosen index)
+      ansible.builtin.set_fact:
+        dock_apps_ordered: >-
+          {{ dock_apps_base[:(dock_apps_extra_position | default(dock_apps_base | length) | int)]
+             + (dock_apps_extra | default([]))
+             + dock_apps_base[(dock_apps_extra_position | default(dock_apps_base | length) | int):] }}
+
+    - name: Dock - Check which pinned apps are installed
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ dock_apps_ordered }}"
+      register: dock_app_stats
+
+    - name: Dock - Pin installed apps in order
+      # Pin only apps present on disk: a disabled cask (or any uninstalled app)
+      # is skipped rather than pinned as a broken Dock tile.
+      ansible.builtin.command:
+        argv: [dockutil, --add, "{{ item.item }}", --no-restart]
+      loop: "{{ dock_app_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.exists
+      changed_when: true
+      notify: Killall-dock
+
+    # --- Finder ---
+    - name: Finder - Hide hidden files
+      community.general.osx_defaults:
+        domain: com.apple.finder
+        key: AppleShowAllFiles
+        type: bool
+        value: false
+        state: present
+      notify: Killall-finder
+
+    - name: Finder - Show all filename extensions
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: AppleShowAllExtensions
+        type: bool
+        value: true
+        state: present
+      notify: Killall-finder
+
+    - name: Finder - Show status bar
+      community.general.osx_defaults:
+        domain: com.apple.finder
+        key: ShowStatusBar
+        type: bool
+        value: true
+        state: present
+      notify: Killall-finder
+
+    - name: Finder - Show path bar
+      community.general.osx_defaults:
+        domain: com.apple.finder
+        key: ShowPathbar
+        type: bool
+        value: true
+        state: present
+
+    - name: Finder - Use list view in all Finder windows by default
+      community.general.osx_defaults:
+        domain: com.apple.finder
+        key: FXPreferredViewStyle
+        type: string
+        value: Nlsv
+        state: present
+      notify: Killall-finder
+
+    - name: Finder - Keep folders on top when sorting by name
+      community.general.osx_defaults:
+        domain: com.apple.finder
+        key: _FXSortFoldersFirst
+        type: bool
+        value: true
+        state: present
+
+    - name: Finder - Disable the warning when changing a file extension
+      community.general.osx_defaults:
+        domain: com.apple.finder
+        key: FXEnableExtensionChangeWarning
+        type: bool
+        value: false
+        state: present
+      notify: Killall-finder
+
+    # --- General settings ---
+    - name: General - Set language and text formats 1/2
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: AppleLanguages
+        type: array
+        value:
+          - fr-FR
+          - fr
+        state: present
+
+    - name: General - Set language and text formats 2/2
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: AppleLocale
+        type: string
+        value: fr_FR
+        state: present
+
+    - name: Screenshots - Create screenshots directory
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/Screenshots"
+        state: directory
+        mode: '0770'
+
+    - name: Screenshots - Save screenshots to a directory
+      community.general.osx_defaults:
+        domain: com.apple.screencapture
+        key: location
+        type: string
+        value: "{{ ansible_env.HOME }}/Screenshots"
+        state: present
+
+    - name: ICloud - Save to disk (not icloud) by default
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: NSDocumentSaveNewDocumentsToCloud
+        type: bool
+        value: false
+        state: present
+
+    - name: General - Force 24-hour time format
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: AppleICUForce24HourTime
+        type: bool
+        value: true
+        state: present
+
+    - name: Keyboard - Set key repeat rate to fastest
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: KeyRepeat
+        type: float
+        value: 1.0
+        state: present
+
+    - name: Keyboard - Set initial key repeat delay to shortest
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: InitialKeyRepeat
+        type: float
+        value: 10.0
+        state: present
+
+    - name: Trackpad - Set tracking speed to maximum
+      community.general.osx_defaults:
+        domain: NSGlobalDomain
+        key: com.apple.trackpad.scaling
+        type: float
+        value: 3.0
+        host: currentHost
+        state: present
+
+    - name: Trackpad - Enable tap to click for this user and for the login screen
+      community.general.osx_defaults:
+        domain: "{{ item.domain }}"
+        key: "{{ item.key }}"
+        type: "{{ item.type }}"
+        value: "{{ item.value }}"
+        host: "{{ item.host | default(omit) }}"
+        state: present
+      loop:
+        - {domain: com.apple.driver.AppleBluetoothMultitouch.trackpad, key: Clicking, type: int, value: 1}
+        - {domain: com.apple.AppleBluetoothMultitouch.trackpad, key: Clicking, type: bool, value: true}
+        - {domain: NSGlobalDomain, key: com.apple.mouse.tapBehavior, type: int, host: currentHost, value: 1}
+        - {domain: NSGlobalDomain, key: com.apple.mouse.tapBehavior, type: int, value: 1}
+
+    # --- TextEdit ---
+    - name: TextEdit - Use plain text mode for new documents
+      community.general.osx_defaults:
+        domain: com.apple.TextEdit
+        key: RichText
+        type: int
+        value: 0
+
+    - name: TextEdit - Open and save files as UTF-8
+      community.general.osx_defaults:
+        domain: com.apple.TextEdit
+        key: "{{ item }}"
+        type: int
+        value: 4
+      loop:
+        - PlainTextEncoding
+        - PlainTextEncodingForWrite
+
+    # --- Rectangle (window manager; installed as a cask from the manifest) ---
+    - name: Rectangle - Launch at login
+      community.general.osx_defaults:
+        domain: com.knollsoft.Rectangle
+        key: launchOnLogin
+        type: bool
+        value: true
+        state: present
+
+    - name: Rectangle - Enable window gaps
+      community.general.osx_defaults:
+        domain: com.knollsoft.Rectangle
+        key: gapSize
+        type: float
+        value: 5.0
+        state: present

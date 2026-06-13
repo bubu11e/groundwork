@@ -1,0 +1,39 @@
+---
+# Requires git_repos to be defined in host_vars/localhost.yml:
+#
+# git_repos:
+#   - repo: https://github.com/user/repo.git
+#     dest: ~/Projects/repo
+#     precommit: true   # optional, defaults to false
+#
+- name: Clone git repositories
+  hosts: localhost
+  tags: [git-repos]
+  tasks:
+    - name: Create base directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - ~/Projects
+        - ~/Temporary
+
+    - name: Clone repositories with submodules  # noqa: latest[git]
+      ansible.builtin.git:
+        repo: "{{ item.repo }}"
+        dest: "{{ item.dest }}"
+        recursive: true
+        update: false
+      loop: "{{ git_repos | default([]) }}"
+
+    - name: Install pre-commit hooks
+      ansible.builtin.command:
+        cmd: pre-commit install
+        chdir: "{{ item.dest }}"
+      loop: "{{ git_repos | default([]) | selectattr('precommit', 'defined') | selectattr('precommit', 'equalto', true) | list }}"
+      register: precommit_install
+      # `pre-commit install` prints "pre-commit installed at ..." only when it
+      # writes the hook; an already-installed repo yields no such line. Use that
+      # to report change honestly instead of the always-ok `changed_when: false`.
+      changed_when: "'pre-commit installed at' in precommit_install.stdout"

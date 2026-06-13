@@ -1,0 +1,65 @@
+---
+# Per-machine configuration. Copy this file to host_vars/localhost.yml and edit
+# for the current machine. host_vars/localhost.yml is gitignored; this template
+# documents the shape of every host-specific variable.
+
+# Per-machine extra casks, appended to the shared homebrew_casks base from
+# group_vars/all.yml at install time. Use this for personal apps you would
+# rather not publish in the committed manifest (messengers, mail, password
+# manager, media, etc.).
+#
+# Example:
+#   homebrew_casks_extra:
+#     - signal
+#     - proton-mail
+#     - keepassxc
+homebrew_casks_extra: []
+
+# Per-cask install toggles (host-specific). Covers both the shared base and the
+# extras above; this map only decides which of them get installed on THIS
+# machine. Every cask defaults to enabled, so you only need to list the ones you
+# want to skip here -- set a name to false to skip it.
+#
+# Example: keep spotify off a work machine.
+#   homebrew_casks_enabled:
+#     spotify: false
+homebrew_casks_enabled: {}
+
+# Personal Dock layout, in order. Overrides the neutral dock_apps_default in
+# playbooks/osx.yml. Finder is always pinned by macOS at the far left, so do not
+# list it. Apps not present on disk are skipped automatically. Leave unset to
+# use the stock-app default.
+#
+# Example:
+#   dock_apps:
+#     - /System/Applications/Calendar.app
+#     - /Applications/Signal.app
+#     - /Applications/Ghostty.app
+dock_apps: []
+
+# Per-host external apps to pin in the Dock, appended after the base dock_apps
+# list in playbooks/osx.yml. Use this for apps installed outside Homebrew (or
+# only wanted on this machine). Apps that are not present on disk are skipped.
+#
+# Example:
+#   dock_apps_extra:
+#     - /Applications/Some External App.app
+dock_apps_extra: []
+
+# Where the dock_apps_extra block is inserted into the base dock_apps list.
+# Index into the base list, Python slice semantics: 0 prepends, a negative
+# index counts from the end (-1 = just before the last app). Leave unset to
+# append at the end.
+#
+# Example: put the external apps right after the first three base apps.
+#   dock_apps_extra_position: 3
+
+# Repositories to clone (consumed by playbooks/git-repos.yml). Leave empty to
+# skip cloning. precommit is optional and defaults to false.
+#
+# Example:
+#   git_repos:
+#     - repo: https://github.com/user/repo.git
+#       dest: ~/Projects/repo
+#       precommit: true
+git_repos: []

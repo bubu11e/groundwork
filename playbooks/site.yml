@@ -1,0 +1,16 @@
+---
+# Full provisioning playbook — runs all playbooks in dependency order.
+# Usage: bin/ansible.sh play playbooks/site.yml
+#
+# Trivial single-formula installs are not playbooks; they live in the Homebrew
+# manifest (group_vars/all.yml) and are installed by homebrew.yml below.
+# Playbooks exist only for concerns that need configuration beyond install.
+
+# --- Software install (every package and cask, from the manifest) ---
+- import_playbook: homebrew.yml  # noqa: name[play]
+
+# --- System (osx_defaults + Dock app pinning) ---
+- import_playbook: osx.yml  # noqa: name[play]
+
+# --- Repositories ---
+- import_playbook: git-repos.yml  # noqa: name[play]

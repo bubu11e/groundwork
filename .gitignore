@@ -1,0 +1,24 @@
+# Ansible Galaxy
+galaxy_collections
+galaxy_roles
+.ansible/
+*.retry
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Ansible vars (group_vars/all.yml is committed as the shared manifest;
+# host_vars holds per-machine config and stays local — only the .example
+# template is tracked)
+host_vars/*
+!host_vars/*.example
+
+# ToDo file
+TODO.md
+
+# AI assistant guidance (kept local, not published)
+CLAUDE.md
