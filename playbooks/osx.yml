@@ -206,7 +206,7 @@
 
     - name: Screenshots - Create screenshots directory
       ansible.builtin.file:
-        path: "{{ ansible_env.HOME }}/Screenshots"
+        path: "{{ ansible_facts['env']['HOME'] }}/Screenshots"
         state: directory
         mode: '0770'
 
@@ -215,7 +215,7 @@
         domain: com.apple.screencapture
         key: location
         type: string
-        value: "{{ ansible_env.HOME }}/Screenshots"
+        value: "{{ ansible_facts['env']['HOME'] }}/Screenshots"
         state: present
 
     - name: ICloud - Save to disk (not icloud) by default
