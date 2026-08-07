@@ -35,6 +35,11 @@ homebrew_packages:
   - tfupdate
   - terrascan
   - checkov
+  # Forge & CI clients
+  # Configured by the dotfiles repo: ~/.config/forgejo-cli/client_ids and
+  # $WOODPECKER_SERVER. Tokens live in keys.json and the macOS keyring.
+  - forgejo-cli
+  - woodpecker-cli
   # Security & linting
   - trivy
   - hadolint
