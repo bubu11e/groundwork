@@ -1,9 +1,9 @@
 ---
 steps:
   - name: pre-commit
-    # docker_registry and docker_repo are provided by the Woodpecker instance
-    # (org/repo variables), so the internal registry host is not committed here.
-    image: ${docker_registry}/${docker_repo}
+    # DOCKER_REGISTRY comes from the server's WOODPECKER_ENVIRONMENT: this repo
+    # is public, so the internal registry host stays out of it.
+    image: ${DOCKER_REGISTRY}/pre-commit:latest
     pull: true
     commands:
       - pre-commit run --all-files
