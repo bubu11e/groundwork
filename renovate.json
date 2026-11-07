@@ -2,5 +2,13 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>julien/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "ansible 14 pins ansible-core 2.21, which crashes on Python 3.15 (dataclasses._is_type removed)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["python"],
+      "allowedVersions": "<3.15"
+    }
   ]
 }
