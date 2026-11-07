@@ -9,7 +9,7 @@ steps:
       - pre-commit run --all-files
 
   - name: syntax-check
-    image: python:3.12-alpine
+    image: python:3.14-alpine
     commands:
       - apk add --no-cache git
       - pip install ansible==14.0.0 --quiet
